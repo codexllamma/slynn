@@ -2,6 +2,8 @@ import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import { PrintButton } from '@/components/PrintButton';
 
+export const dynamic = 'force-dynamic';
+
 export default async function InvoicePage({ params }: { params: { orderId: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },
