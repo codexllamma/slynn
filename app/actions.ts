@@ -27,7 +27,7 @@ export async function createOrderFlow(data: {
 }) {
   const { channel, customerDetails, items } = data;
 
-  await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     let customerId = null;
     if (customerDetails?.name) {
       const customer = await tx.customer.create({
@@ -115,10 +115,12 @@ export async function createOrderFlow(data: {
         invoiceNumber: `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       },
     });
+
+    return order;
   });
 
   revalidatePath('/');
-  return { success: true };
+  return { success: true, orderId: result.id };
 }
 
 export async function fetchLedger(filters?: { searchTerm?: string; channel?: Channel | 'ALL'; }) {

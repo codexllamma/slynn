@@ -31,6 +31,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
 
   const [loading, setLoading] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // Only scroll inner container smoothly when interactions happen
   useEffect(() => {
@@ -51,6 +52,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
     setCartItems([]);
     setCustomerDetails({ name: '', email: '', phone: '', address: '' });
     setSelectedSearchProduct(null);
+    setCreatedOrderId(null);
     resetNewProductForm();
   };
 
@@ -110,15 +112,16 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
         }
       });
 
-      await createOrderFlow({
+      const res = await createOrderFlow({
         channel: channel as any,
         items: payloadItems,
         customerDetails: customerDetails.name ? customerDetails : undefined,
       });
+      
       if(showToast) showToast('Order logged successfully!', 'success');
-      reset();
+      setCreatedOrderId(res.orderId || null);
+      setStep(7);
       onViewChange('ORDERS');
-      onClose(); // Close the chatbot on success
     } catch (e: any) {
       if(showToast) showToast('Error: ' + e.message, 'error');
     }
@@ -245,25 +248,112 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
           <div className="flex flex-col animate-slideUp">
             <div className="bg-slate-50 text-slate-700 rounded-2xl rounded-tl-sm p-5 self-start max-w-xl shadow-sm border border-slate-100">
               Let's add products to the consignment.
-              {cartItems.length > 0 && <span className="block mt-2 font-medium text-sky-700">{cartItems.length} items added so far.</span>}
+              {cartItems.length > 0 && (
+                <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                  <h4 className="text-sm font-bold text-slate-700 mb-3 border-b border-slate-100 pb-2">Cart Summary ({cartItems.length} items)</h4>
+                  <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+                    {cartItems.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{item.name}</p>
+                          <p className="text-xs text-slate-500">
+                            Size: {item.size || item.variants?.map((v:any)=>v.size).join(', ')} 
+                            {item.quantity ? ` | Qty: ${item.quantity}` : ` | Variants: ${item.variants?.length}`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-slate-700">
+                            ₹{item.isNew 
+                              ? item.variants.reduce((sum:any, v:any)=>sum + (Number(v.quantity)*Number(v.price || item.basePrice)), 0).toLocaleString('en-IN')
+                              : (Number(item.quantity) * Number(item.price)).toLocaleString('en-IN')
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             
             {step === 3 && (
               <div className="mt-3 flex gap-2 flex-wrap">
-                <button onClick={() => setStep(4)} className="bg-white border-2 border-purple-500 text-purple-600 font-bold py-2 px-4 rounded-xl hover:bg-purple-50">
+                <button onClick={() => setStep(4)} className="bg-white border border-slate-200 text-purple-600 font-bold py-2.5 px-5 rounded-xl hover:bg-purple-50 transition-colors shadow-sm">
                   + Add New Product
                 </button>
-                <button onClick={() => setStep(5)} className="bg-white border-2 border-blue-500 text-blue-600 font-bold py-2 px-4 rounded-xl hover:bg-blue-50">
+                <button onClick={() => setStep(5)} className="bg-white border border-slate-200 text-sky-600 font-bold py-2.5 px-5 rounded-xl hover:bg-sky-50 transition-colors shadow-sm">
                   + Select Existing Product
                 </button>
                 
                 {cartItems.length > 0 && (
-                  <button onClick={handleCreateOrder} disabled={loading} className="w-full mt-4 bg-green-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-green-700">
-                    {loading ? 'Processing...' : 'Create Consignment & Invoice'}
+                  <button onClick={() => setStep(6)} className="w-full mt-4 bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl hover:bg-slate-900 transition-colors shadow-md">
+                    Review Consignment Summary
                   </button>
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Step 6: Review Summary */}
+        {actionType === 'SALE' && step === 6 && (
+          <div className="flex flex-col animate-slideUp">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm self-start w-full">
+              <h3 className="font-bold text-slate-800 text-lg mb-4">Final Consignment Summary</h3>
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-sm font-semibold text-slate-500">Channel:</span>
+                  <span className="text-sm font-bold text-slate-800 uppercase">{channel.replace('_', ' ')}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-sm font-semibold text-slate-500">Customer:</span>
+                  <span className="text-sm font-bold text-slate-800">{customerDetails.name}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-sm font-semibold text-slate-500">Total Items (Lines):</span>
+                  <span className="text-sm font-bold text-slate-800">{cartItems.length}</span>
+                </div>
+                <div className="flex justify-between border-slate-200 pt-2">
+                  <span className="text-lg font-bold text-slate-800">Grand Total:</span>
+                  <span className="text-lg font-bold text-sky-700">₹{cartItems.reduce((acc, item) => {
+                    if (item.isNew) {
+                      return acc + item.variants.reduce((sum: any, v: any) => sum + (Number(v.quantity) * Number(v.price || item.basePrice || 0)), 0);
+                    }
+                    return acc + (Number(item.quantity) * Number(item.price));
+                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={handleCreateOrder} disabled={loading} className="flex-1 bg-sky-600 text-white font-bold py-3.5 rounded-xl hover:bg-sky-700 transition-colors shadow-md disabled:opacity-50">
+                  {loading ? 'Creating...' : 'Create Consignment'}
+                </button>
+                <button onClick={() => setStep(3)} className="bg-white border border-slate-200 text-slate-600 font-bold py-3.5 px-6 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
+                  Back
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 7: Success & Print Invoice */}
+        {actionType === 'SALE' && step === 7 && (
+          <div className="flex flex-col animate-slideUp">
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm self-start w-full text-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 text-3xl">✓</div>
+              <h3 className="font-bold text-emerald-800 text-xl mb-2">Consignment Logged Successfully!</h3>
+              <p className="text-emerald-700 text-sm mb-6">The inventory has been updated and the order is saved.</p>
+              
+              <div className="flex gap-3 justify-center">
+                {createdOrderId && (
+                  <a href={`/invoice/${createdOrderId}`} target="_blank" rel="noreferrer" className="flex-1 bg-slate-800 text-white font-bold py-3 px-6 rounded-xl hover:bg-slate-900 transition-colors shadow-md">
+                    Print Invoice
+                  </a>
+                )}
+                <button onClick={() => { reset(); onClose(); }} className="flex-1 bg-white border border-emerald-200 text-emerald-700 font-bold py-3 px-6 rounded-xl hover:bg-emerald-100 transition-colors shadow-sm">
+                  Close Assistant
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
