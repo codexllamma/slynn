@@ -4,105 +4,56 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { Channel } from '@prisma/client';
 
-export async function createOrderFlow(data: {
+export async function createMultiItemOrder(data: {
   channel: Channel;
-  customerDetails?: { name: string; email?: string; phone?: string; address?: string; };
+  customerDetails?: string;
+  receivedAmount?: number;
   items: Array<{
-    isNewProduct: boolean;
-    productVariantId?: string; // If existing product
-    newProductDetails?: {
-      name: string;
-      description?: string;
-      category?: string;
-      color?: string;
-      printName?: string;
-      imageUrl?: string;
-      basePrice: number;
-      variants: Array<{ size: string; quantity: number; price: number }>;
-    };
-    // For existing products:
-    quantity?: number;
-    soldPricePerUnit?: number;
+    productId: string;
+    hsnSac?: string;
+    quantity: number;
+    unit?: string;
+    pricePerUnit: number;
   }>;
 }) {
-  const { channel, customerDetails, items } = data;
+  const { channel, customerDetails, receivedAmount = 0, items } = data;
 
   const result = await prisma.$transaction(async (tx) => {
-    let customerId = null;
-    if (customerDetails?.name) {
-      const customer = await tx.customer.create({
-        data: {
-          name: customerDetails.name,
-          email: customerDetails.email || null,
-          phone: customerDetails.phone || null,
-          address: customerDetails.address || null,
-        }
-      });
-      customerId = customer.id;
-    }
-
-    let totalOrderAmount = 0;
+    let subTotal = 0;
     const orderItemsToCreate = [];
 
     for (const item of items) {
-      if (item.isNewProduct && item.newProductDetails) {
-        const p = item.newProductDetails;
-        
-        // 1. Create Product
-        const newProduct = await tx.product.create({
-          data: {
-            name: p.name,
-            description: p.description,
-            category: p.category,
-            color: p.color,
-            printName: p.printName,
-            imageUrl: p.imageUrl,
-            basePrice: p.basePrice,
-          },
-        });
-
-        // 2. Create Variants & deduct stock (since it's a sale/consignment of these new items)
-        for (const v of p.variants) {
-          const variant = await tx.productVariant.create({
-            data: {
-              productId: newProduct.id,
-              size: v.size,
-              stock: 0, // Consignment logic: it starts at 0, goes negative, or starts at quantity and drops to 0. Let's just set to 0.
-              price: v.price,
-            }
-          });
-
-          orderItemsToCreate.push({
-            productVariantId: variant.id,
-            quantity: v.quantity,
-            soldPricePerUnit: v.price,
-            totalAmount: v.quantity * v.price,
-          });
-          totalOrderAmount += (v.quantity * v.price);
-        }
-      } else if (!item.isNewProduct && item.productVariantId && item.quantity && item.soldPricePerUnit) {
-        // Existing product variant
-        orderItemsToCreate.push({
-          productVariantId: item.productVariantId,
-          quantity: item.quantity,
-          soldPricePerUnit: item.soldPricePerUnit,
-          totalAmount: item.quantity * item.soldPricePerUnit,
-        });
-        totalOrderAmount += (item.quantity * item.soldPricePerUnit);
-
-        // Deduct stock
-        await tx.productVariant.update({
-          where: { id: item.productVariantId },
-          data: { stock: { decrement: item.quantity } }
-        });
-      }
+      const totalPrice = item.quantity * item.pricePerUnit;
+      subTotal += totalPrice;
+      
+      orderItemsToCreate.push({
+        productId: item.productId,
+        hsnSac: item.hsnSac,
+        quantity: item.quantity,
+        unit: item.unit || 'Pcs',
+        pricePerUnit: item.pricePerUnit,
+        totalPrice: totalPrice,
+      });
     }
+
+    const discount = 0;
+    const taxRate = 5.0;
+    const taxableAmount = subTotal - discount;
+    const taxAmount = (taxableAmount * taxRate) / 100;
+    const totalAmount = Math.round(taxableAmount + taxAmount);
+    const balance = totalAmount - receivedAmount;
 
     const order = await tx.order.create({
       data: {
         channel,
-        customerId,
-        totalAmount: totalOrderAmount,
+        subTotal,
+        discount,
+        taxRate,
+        taxAmount,
+        totalAmount,
+        receivedAmount,
+        balance,
+        customerDetails: customerDetails || null,
         items: {
           create: orderItemsToCreate,
         }
@@ -132,9 +83,9 @@ export async function fetchLedger(filters?: { searchTerm?: string; channel?: Cha
 
   if (filters?.searchTerm) {
     whereClause.OR = [
-      { items: { some: { productVariant: { product: { name: { contains: filters.searchTerm, mode: 'insensitive' } } } } } },
-      { items: { some: { productVariant: { product: { printName: { contains: filters.searchTerm, mode: 'insensitive' } } } } } },
-      { customer: { name: { contains: filters.searchTerm, mode: 'insensitive' } } },
+      { items: { some: { product: { name: { contains: filters.searchTerm, mode: 'insensitive' } } } } },
+      { items: { some: { product: { printName: { contains: filters.searchTerm, mode: 'insensitive' } } } } },
+      { customerDetails: { contains: filters.searchTerm, mode: 'insensitive' } },
       { invoice: { invoiceNumber: { contains: filters.searchTerm, mode: 'insensitive' } } }
     ];
   }
@@ -142,13 +93,10 @@ export async function fetchLedger(filters?: { searchTerm?: string; channel?: Cha
   const orders = await prisma.order.findMany({
     where: whereClause,
     include: {
-      customer: true,
       invoice: true,
       items: {
         include: {
-          productVariant: {
-            include: { product: true }
-          }
+          product: true
         }
       }
     },
@@ -156,14 +104,6 @@ export async function fetchLedger(filters?: { searchTerm?: string; channel?: Cha
   });
 
   return orders;
-}
-
-export async function updateProductStock(variantId: string, newStock: number) {
-  await prisma.productVariant.update({
-    where: { id: variantId },
-    data: { stock: newStock },
-  });
-  revalidatePath('/');
 }
 
 export async function createProduct(data: {
@@ -195,6 +135,14 @@ export async function createProduct(data: {
         }))
       }
     }
+  });
+  revalidatePath('/');
+}
+
+export async function updateProductStock(variantId: string, newStock: number) {
+  await prisma.productVariant.update({
+    where: { id: variantId },
+    data: { stock: newStock },
   });
   revalidatePath('/');
 }

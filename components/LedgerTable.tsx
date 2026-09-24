@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Channel } from '@prisma/client';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 
-export function LedgerTable({ initialOrders, defaultView }: { initialOrders: any[], defaultView: 'FINANCIALS' | 'ORDERS' }) {
+export function LedgerTable({ initialOrders, defaultView = 'ALL' }: { initialOrders: any[], defaultView?: 'ALL' | 'FINANCIALS' | 'ORDERS' }) {
   const [search, setSearch] = useState('');
-  const [channelFilter, setChannelFilter] = useState<Channel | 'ALL'>('ALL');
+  const [channelFilter, setChannelFilter] = useState<'ALL' | 'ONLINE_RETAIL' | 'OFFLINE_RETAIL' | 'WHOLESALE'>('ALL');
 
   const filteredOrders = useMemo(() => {
     let result = initialOrders;
@@ -18,12 +17,11 @@ export function LedgerTable({ initialOrders, defaultView }: { initialOrders: any
     if (search.trim()) {
       const lowerSearch = search.toLowerCase();
       result = result.filter(o => {
-        const matchesCustomer = o.customer?.name?.toLowerCase().includes(lowerSearch) || o.customer?.email?.toLowerCase().includes(lowerSearch);
+        const matchesCustomer = o.customerDetails?.toLowerCase().includes(lowerSearch);
         const matchesInvoice = o.invoice?.invoiceNumber?.toLowerCase().includes(lowerSearch);
         const matchesItems = o.items.some((item: any) => 
-          item.productVariant.product.name.toLowerCase().includes(lowerSearch) ||
-          item.productVariant.product.printName?.toLowerCase().includes(lowerSearch) ||
-          item.productVariant.size.toLowerCase().includes(lowerSearch)
+          item.product?.name.toLowerCase().includes(lowerSearch) ||
+          item.product?.printName?.toLowerCase().includes(lowerSearch)
         );
         return matchesCustomer || matchesInvoice || matchesItems;
       });
@@ -66,7 +64,7 @@ export function LedgerTable({ initialOrders, defaultView }: { initialOrders: any
         <div className="flex-grow relative">
           <input
             type="text"
-            placeholder="Search by product, print, size, customer, or invoice #..."
+            placeholder="Search by product, print, customer, or invoice #..."
             className="w-full border border-slate-200 rounded-xl p-3 pr-10 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all text-sm bg-slate-50/50"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -115,20 +113,20 @@ export function LedgerTable({ initialOrders, defaultView }: { initialOrders: any
                     {order.items.map((item: any) => (
                       <div key={item.id} className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm flex justify-between items-center hover:shadow-md transition-shadow">
                         <div>
-                          <p className="font-semibold text-slate-800">{item.productVariant.product.name}</p>
+                          <p className="font-semibold text-slate-800">{item.product?.name}</p>
                           <p className="text-xs text-slate-500 mt-1">
-                            {item.productVariant.product.color}{item.productVariant.product.printName ? ` (${item.productVariant.product.printName})` : ''} | <span className="font-medium text-slate-700">Size {item.productVariant.size}</span>
+                            {item.product?.color}{item.product?.printName ? ` (${item.product?.printName})` : ''} 
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-medium text-slate-400">{item.quantity} &times; ₹{item.soldPricePerUnit.toLocaleString('en-IN')}</p>
-                          <p className="font-bold text-slate-800">₹{item.totalAmount.toLocaleString('en-IN')}</p>
+                          <p className="text-xs font-medium text-slate-400">{item.quantity} &times; ₹{item.pricePerUnit.toLocaleString('en-IN')}</p>
+                          <p className="font-bold text-slate-800">₹{item.totalPrice.toLocaleString('en-IN')}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </td>
-                <td className="py-5 px-5 font-medium text-slate-700">{order.customer?.name || '-'}</td>
+                <td className="py-5 px-5 font-medium text-slate-700">{order.customerDetails || '-'}</td>
                 <td className="py-5 px-5 text-right font-bold text-slate-900 text-lg">₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td className="py-5 px-5 text-center">
                   {order.invoice ? (

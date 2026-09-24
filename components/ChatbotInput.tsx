@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { createOrderFlow, createProduct } from '@/app/actions';
+import { createMultiItemOrder, createProduct } from '@/app/actions';
 
 export function ChatbotInput({ products, activeView, onViewChange, onClose, showToast }: { products: any[], activeView: string, onViewChange: (view: any) => void, onClose: () => void, showToast?: (msg: string, type: 'info'|'success'|'error') => void }) {
   const [step, setStep] = useState(0);
@@ -84,38 +84,17 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
     setLoading(true);
     try {
       const payloadItems = cartItems.map(item => {
-        if (item.isNew) {
-          return {
-            isNewProduct: true,
-            newProductDetails: {
-              name: item.name,
-              description: item.description,
-              category: item.category,
-              color: item.color,
-              printName: item.printName,
-              imageUrl: item.imageUrl,
-              basePrice: Number(item.basePrice),
-              variants: item.variants.map((v: any) => ({
-                size: v.size,
-                quantity: Number(v.quantity),
-                price: Number(v.price)
-              }))
-            }
-          };
-        } else {
-          return {
-            isNewProduct: false,
-            productVariantId: item.variantId,
-            quantity: Number(item.quantity),
-            soldPricePerUnit: Number(item.price)
-          };
-        }
+        return {
+          productId: item.productId,
+          quantity: Number(item.quantity),
+          pricePerUnit: Number(item.price)
+        };
       });
 
-      const res = await createOrderFlow({
+      const res = await createMultiItemOrder({
         channel: channel as any,
         items: payloadItems,
-        customerDetails: customerDetails.name ? customerDetails : undefined,
+        customerDetails: customerDetails.name ? customerDetails.name : undefined,
       });
       
       if(showToast) showToast('Order logged successfully!', 'success');
@@ -313,15 +292,32 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   <span className="text-sm font-semibold text-slate-500">Total Items (Lines):</span>
                   <span className="text-sm font-bold text-slate-800">{cartItems.length}</span>
                 </div>
-                <div className="flex justify-between border-slate-200 pt-2">
-                  <span className="text-lg font-bold text-slate-800">Grand Total:</span>
-                  <span className="text-lg font-bold text-sky-700">₹{cartItems.reduce((acc, item) => {
+                {(() => {
+                  const subTotal = cartItems.reduce((acc, item) => {
                     if (item.isNew) {
                       return acc + item.variants.reduce((sum: any, v: any) => sum + (Number(v.quantity) * Number(v.price || item.basePrice || 0)), 0);
                     }
                     return acc + (Number(item.quantity) * Number(item.price));
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
+                  }, 0);
+                  const gst = subTotal * 0.05;
+                  const finalTotal = Math.round(subTotal + gst);
+                  return (
+                    <>
+                      <div className="flex justify-between border-b border-slate-200 pb-2">
+                        <span className="text-sm font-semibold text-slate-500">Sub Total:</span>
+                        <span className="text-sm font-bold text-slate-800">₹{subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-2">
+                        <span className="text-sm font-semibold text-slate-500">GST (5%):</span>
+                        <span className="text-sm font-bold text-slate-800">₹{gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between border-slate-200 pt-2">
+                        <span className="text-lg font-bold text-slate-800">Final Total:</span>
+                        <span className="text-lg font-bold text-sky-700">₹{finalTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div className="flex gap-3">
                 <button onClick={handleCreateOrder} disabled={loading} className="flex-1 bg-sky-600 text-white font-bold py-3.5 rounded-xl hover:bg-sky-700 transition-colors shadow-md disabled:opacity-50">
@@ -473,7 +469,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                               <div className="flex gap-2">
                                 <button onClick={() => {
                                   if(variantAddQty > 0) {
-                                    setCartItems([...cartItems, { isNew: false, variantId: v.id, name: selectedSearchProduct.name, size: v.size, quantity: variantAddQty, price: variantAddPrice }]);
+                                    setCartItems([...cartItems, { isNew: false, productId: selectedSearchProduct.id, variantId: v.id, name: selectedSearchProduct.name, size: v.size, quantity: variantAddQty, price: variantAddPrice }]);
                                     setAddingVariantId(null);
                                     setSelectedSearchProduct(null);
                                     setSearchQuery('');

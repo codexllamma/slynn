@@ -52,20 +52,28 @@ async function main() {
       include: { variants: true }
     });
 
-    const mVariant = product.variants.find(v => v.size === 'M')!;
+    const subTotal = p.basePrice;
+    const gst = subTotal * 0.05;
+    const finalTotal = Math.round(subTotal + gst);
 
     const order = await prisma.order.create({
       data: {
         channel: Channel.ONLINE_RETAIL,
-        customerId: customer1.id,
-        totalAmount: p.basePrice * 1,
+        customerDetails: customer1.name,
+        subTotal: subTotal,
+        discount: 0,
+        taxRate: 5.0,
+        taxAmount: gst,
+        totalAmount: finalTotal,
+        receivedAmount: finalTotal,
+        balance: 0,
         items: {
           create: [
             {
-              productVariantId: mVariant.id,
+              productId: product.id,
               quantity: 1,
-              soldPricePerUnit: p.basePrice,
-              totalAmount: p.basePrice * 1,
+              pricePerUnit: p.basePrice,
+              totalPrice: subTotal,
             }
           ]
         }
@@ -76,84 +84,6 @@ async function main() {
       data: {
         orderId: order.id,
         invoiceNumber: `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      },
-    });
-  }
-
-  // Offline Retail Order (Multiple items)
-  const product2 = await prisma.product.findFirst({ where: { sku: 'TS-BLK-SOLID' }, include: { variants: true } });
-  const product2Wolf = await prisma.product.findFirst({ where: { sku: 'TS-WHT-WOLF' }, include: { variants: true } });
-  
-  if (product2 && product2Wolf) {
-    const variant1 = product2.variants.find(v => v.size === 'L')!;
-    const variant2 = product2Wolf.variants.find(v => v.size === 'M')!;
-    
-    await prisma.order.create({
-      data: {
-        channel: Channel.OFFLINE_RETAIL,
-        customerId: customer2.id,
-        totalAmount: (product2.basePrice! * 2) + (product2Wolf.basePrice! * 1),
-        items: {
-          create: [
-            {
-              productVariantId: variant1.id,
-              quantity: 2,
-              soldPricePerUnit: product2.basePrice!,
-              totalAmount: product2.basePrice! * 2,
-            },
-            {
-              productVariantId: variant2.id,
-              quantity: 1,
-              soldPricePerUnit: product2Wolf.basePrice!,
-              totalAmount: product2Wolf.basePrice! * 1,
-            }
-          ]
-        }
-      },
-    });
-  }
-
-  // Wholesale Order
-  const product3 = await prisma.product.findFirst({ where: { sku: 'HD-NVY-SOLID' }, include: { variants: true } });
-  if (product3) {
-    const variantM = product3.variants.find(v => v.size === 'M')!;
-    const variantL = product3.variants.find(v => v.size === 'L')!;
-    const variantXL = product3.variants.find(v => v.size === 'XL')!;
-
-    const wholesaleOrder = await prisma.order.create({
-      data: {
-        channel: Channel.WHOLESALE,
-        customerId: customer3.id,
-        totalAmount: 36000.00,
-        items: {
-          create: [
-            {
-              productVariantId: variantM.id,
-              quantity: 10,
-              soldPricePerUnit: 1200.00,
-              totalAmount: 12000.00,
-            },
-            {
-              productVariantId: variantL.id,
-              quantity: 10,
-              soldPricePerUnit: 1200.00,
-              totalAmount: 12000.00,
-            },
-            {
-              productVariantId: variantXL.id,
-              quantity: 10,
-              soldPricePerUnit: 1200.00,
-              totalAmount: 12000.00,
-            }
-          ]
-        }
-      },
-    });
-    
-    await prisma.invoice.create({
-      data: {
-        orderId: wholesaleOrder.id,
-        invoiceNumber: `INV-WS-${Date.now()}`,
       },
     });
   }

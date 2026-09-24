@@ -12,12 +12,9 @@ export default async function Home() {
   const initialOrders = await prisma.order.findMany({
     include: { 
       invoice: true,
-      customer: true,
       items: {
         include: {
-          productVariant: {
-            include: { product: true }
-          }
+          product: true
         }
       }
     },
