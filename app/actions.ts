@@ -113,7 +113,7 @@ export async function createProduct(data: {
   category?: string;
   color?: string;
   printName?: string;
-  imageUrl?: string;
+  imageUrls?: string[];
   basePrice: number;
   variants: Array<{ size: string; stock: number; price?: number }>;
 }) {
@@ -125,7 +125,7 @@ export async function createProduct(data: {
       category: data.category,
       color: data.color,
       printName: data.printName,
-      imageUrl: data.imageUrl,
+      imageUrl: data.imageUrls && data.imageUrls.length > 0 ? data.imageUrls[0] : undefined,
       basePrice: data.basePrice,
       variants: {
         create: data.variants.map(v => ({
@@ -133,6 +133,12 @@ export async function createProduct(data: {
           stock: v.stock,
           price: v.price || data.basePrice,
         }))
+      },
+      images: {
+        create: data.imageUrls?.map((url, i) => ({
+          url,
+          isPrimary: i === 0,
+        })) || []
       }
     }
   });

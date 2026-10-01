@@ -5,7 +5,7 @@ const allowedEmails = (process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((email) => email.trim().toLowerCase());
 
-export const authOptions = {
+const authOptions = {
   providers: [
     CredentialsProvider({
       name: "Admin Credentials",
