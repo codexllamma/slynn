@@ -110,10 +110,16 @@ export default async function InvoicePage({ params }: { params: { id: string } }
               </thead>
               <tbody className="text-sm">
                 <tr>
-                  <td className="border-r-2 border-black p-1">GST</td>
+                  <td className="border-r-2 border-black p-1">CGST</td>
                   <td className="border-r-2 border-black p-1 text-right">{(order.subTotal - order.discount).toFixed(2)}</td>
-                  <td className="border-r-2 border-black p-1 text-right">{order.taxRate.toFixed(1)}%</td>
-                  <td className="p-1 text-right">{order.taxAmount.toFixed(2)}</td>
+                  <td className="border-r-2 border-black p-1 text-right">{(order.taxRate / 2).toFixed(1)}%</td>
+                  <td className="p-1 text-right">{(order.taxAmount / 2).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="border-r-2 border-black p-1">SGST</td>
+                  <td className="border-r-2 border-black p-1 text-right">{(order.subTotal - order.discount).toFixed(2)}</td>
+                  <td className="border-r-2 border-black p-1 text-right">{(order.taxRate / 2).toFixed(1)}%</td>
+                  <td className="p-1 text-right">{(order.taxAmount / 2).toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
@@ -128,8 +134,12 @@ export default async function InvoicePage({ params }: { params: { id: string } }
               <span>{order.discount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between border-b border-black p-1">
-              <span>Tax ({order.taxRate.toFixed(1)}%)</span>
-              <span>{order.taxAmount.toFixed(2)}</span>
+              <span>CGST ({(order.taxRate / 2).toFixed(1)}%)</span>
+              <span>{(order.taxAmount / 2).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-b border-black p-1">
+              <span>SGST ({(order.taxRate / 2).toFixed(1)}%)</span>
+              <span>{(order.taxAmount / 2).toFixed(2)}</span>
             </div>
             <div className="flex justify-between border-b-2 border-black p-1">
               <span>Round off</span>

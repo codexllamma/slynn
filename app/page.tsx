@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 export default async function Home() {
   const products = await prisma.product.findMany({
-    include: { variants: true },
+    include: { variants: true, images: true },
     orderBy: { name: 'asc' },
   });
 

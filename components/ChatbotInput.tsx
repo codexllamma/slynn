@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createMultiItemOrder, createProduct } from '@/app/actions';
+import { uploadProductImage } from '@/lib/supabase';
 
 export function ChatbotInput({ products, activeView, onViewChange, onClose, showToast }: { products: any[], activeView: string, onViewChange: (view: any) => void, onClose: () => void, showToast?: (msg: string, type: 'info'|'success'|'error') => void }) {
   const [step, setStep] = useState(0);
@@ -28,6 +29,8 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
   const [imageUrl, setImageUrl] = useState('');
   const [basePrice, setBasePrice] = useState<number | ''>('');
   const [newVariants, setNewVariants] = useState([{ size: 'M', quantity: 1, price: 0 }]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -109,8 +112,16 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
 
   const handleAddProduct = async () => {
     setLoading(true);
+    setIsUploading(true);
     try {
       if(!newProductName) throw new Error("Name required");
+      
+      const imageUrls = [];
+      for (const f of imageFiles) {
+        const url = await uploadProductImage(f);
+        if (url) imageUrls.push(url);
+      }
+
       await createProduct({
         name: newProductName,
         sku,
@@ -118,7 +129,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
         category,
         color,
         printName: printName || undefined,
-        imageUrl,
+        imageUrls,
         basePrice: Number(basePrice),
         variants: newVariants.map(v => ({ size: v.size, stock: Number(v.quantity), price: Number(v.price) || Number(basePrice) }))
       });
@@ -129,6 +140,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
     } catch (e: any) {
       if(showToast) showToast('Error: ' + e.message, 'error');
     }
+    setIsUploading(false);
     setLoading(false);
   };
 
@@ -174,6 +186,9 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                     {ch.replace('_', ' ')}
                   </button>
                 ))}
+                <button onClick={() => { setStep(0); setActionType(null); }} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-2 px-4 rounded-xl transition-all">
+                  Go Back
+                </button>
               </div>
             )}
             {step > 1 && (
@@ -212,6 +227,9 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                 
                 <button onClick={() => setStep(3)} disabled={!customerDetails.name} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors disabled:opacity-50 mt-4">
                   Confirm Customer
+                </button>
+                <button onClick={() => setStep(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 px-4 rounded-lg w-full transition-colors mt-2">
+                  Go Back
                 </button>
               </div>
             )}
@@ -269,6 +287,9 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                     Review Consignment Summary
                   </button>
                 )}
+                <button onClick={() => setStep(2)} className="w-full mt-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 px-4 rounded-xl transition-colors shadow-sm">
+                  Go Back
+                </button>
               </div>
             )}
           </div>
@@ -308,8 +329,12 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                         <span className="text-sm font-bold text-slate-800">₹{subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between border-b border-slate-200 pb-2">
-                        <span className="text-sm font-semibold text-slate-500">GST (5%):</span>
-                        <span className="text-sm font-bold text-slate-800">₹{gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-sm font-semibold text-slate-500">CGST (2.5%):</span>
+                        <span className="text-sm font-bold text-slate-800">₹{(gst / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-2">
+                        <span className="text-sm font-semibold text-slate-500">SGST (2.5%):</span>
+                        <span className="text-sm font-bold text-slate-800">₹{(gst / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between border-slate-200 pt-2">
                         <span className="text-lg font-bold text-slate-800">Final Total:</span>
@@ -365,6 +390,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   <input type="text" className="border rounded p-2 text-sm" placeholder="Base Color" value={color} onChange={e => setColor(e.target.value)} />
                   <input type="text" className="border rounded p-2 text-sm" placeholder="Print Name" value={printName} onChange={e => setPrintName(e.target.value)} />
                   <input type="number" className="border rounded p-2 text-sm" placeholder="Base Price (₹)" value={basePrice} onChange={e => setBasePrice(Number(e.target.value))} />
+                  <input type="file" multiple accept="image/*" className="col-span-2 border rounded p-2 text-sm" onChange={e => setImageFiles(Array.from(e.target.files || []))} />
                 </div>
                 
                 <div className="mb-4">
@@ -385,14 +411,22 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={() => {
+                  <button onClick={async () => {
                     if(!newProductName) return alert("Name required");
+                    setIsUploading(true);
+                    const urls = [];
+                    for (const f of imageFiles) {
+                      const url = await uploadProductImage(f);
+                      if (url) urls.push(url);
+                    }
+                    setIsUploading(false);
+
                     setCartItems([...cartItems, {
-                      isNew: true, name: newProductName, description, category, color, printName, imageUrl, basePrice, variants: newVariants
+                      isNew: true, name: newProductName, description, category, color, printName, imageUrls: urls, basePrice, variants: newVariants
                     }]);
                     resetNewProductForm();
                     setStep(3); // Go back to Add Products menu
-                  }} className="flex-1 bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700">Add to Consignment</button>
+                  }} className="flex-1 bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700 disabled:opacity-50" disabled={isUploading}>{isUploading ? 'Uploading...' : 'Add to Consignment'}</button>
                   <button onClick={() => { resetNewProductForm(); setStep(3); }} className="flex-1 bg-gray-200 text-gray-700 font-bold py-2 rounded hover:bg-gray-300">Cancel</button>
                 </div>
              </div>
@@ -509,7 +543,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   <input type="text" className="border rounded p-2 text-sm" placeholder="Category" value={category} onChange={e => setCategory(e.target.value)} />
                   <input type="text" className="border rounded p-2 text-sm" placeholder="Base Color" value={color} onChange={e => setColor(e.target.value)} />
                   <input type="text" className="border rounded p-2 text-sm" placeholder="Print Name" value={printName} onChange={e => setPrintName(e.target.value)} />
-                  <input type="text" className="col-span-2 border rounded p-2 text-sm" placeholder="Image URL" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
+                  <input type="file" multiple accept="image/*" className="col-span-2 border rounded p-2 text-sm" onChange={e => setImageFiles(Array.from(e.target.files || []))} />
                   <input type="number" className="border rounded p-2 text-sm" placeholder="Base Price (₹)" value={basePrice} onChange={e => setBasePrice(Number(e.target.value))} />
                 </div>
                 
@@ -534,7 +568,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   {loading ? 'Saving...' : 'Add Product'}
                 </button>
                 <button onClick={reset} className="text-gray-500 font-semibold w-full text-center hover:text-gray-800 transition-colors mt-2">
-                  Cancel
+                  Go Back
                 </button>
               </div>
             )}

@@ -146,3 +146,44 @@ export async function updateProductStock(variantId: string, newStock: number) {
   });
   revalidatePath('/');
 }
+
+export async function updateProduct(id: string, data: {
+  name: string;
+  sku?: string;
+  description?: string;
+  category?: string;
+  color?: string;
+  printName?: string;
+  basePrice: number;
+}) {
+  await prisma.product.update({
+    where: { id },
+    data: {
+      name: data.name,
+      sku: data.sku || null,
+      description: data.description,
+      category: data.category,
+      color: data.color,
+      printName: data.printName,
+      basePrice: data.basePrice,
+    },
+  });
+  revalidatePath('/');
+}
+
+export async function addProductImageRecord(productId: string, url: string) {
+  await prisma.productImage.create({
+    data: {
+      productId,
+      url,
+    }
+  });
+  revalidatePath('/');
+}
+
+export async function deleteProductImageRecord(imageId: string) {
+  await prisma.productImage.delete({
+    where: { id: imageId }
+  });
+  revalidatePath('/');
+}
