@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Slynn - Admin Panel",
-  description: "Slynn ERP and Inventory Management",
+  title: "Slyn - Admin Panel",
+  description: "Slyn ERP and Inventory Management",
 };
 
 export default function RootLayout({

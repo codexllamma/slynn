@@ -35,7 +35,7 @@ export function Dashboard({ products, initialOrders }: { products: any[]; initia
       </div>
 
       <header className="flex justify-center pt-8 pb-4">
-        <h1 className="text-3xl tracking-widest uppercase font-light text-slate-800">Slynn</h1>
+        <h1 className="text-3xl tracking-widest uppercase font-light text-slate-800">Slyn</h1>
       </header>
       
       {/* Central Collapsible Chatbot */}

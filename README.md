@@ -1,6 +1,6 @@
-# Slynn ERP - Staff Operations Guide
+# Slyn ERP - Staff Operations Guide
 
-Welcome to the Slynn Admin Panel! This system is designed to be as simple as chatting with an assistant. Here is a quick guide to help you manage your inventory, log sales, and handle daily operations.
+Welcome to the Slyn Admin Panel! This system is designed to be as simple as chatting with an assistant. Here is a quick guide to help you manage your inventory, log sales, and handle daily operations.
 
 ## 1. The Assistant (Your Main Hub)
 At the top of the screen, you will see a button that says **"✦ What could I help you with today?"**. 
