@@ -20,6 +20,7 @@ model Product {
   name        String
   description String?
   category    String?
+  salesCategory Channel @default(OFFLINE_RETAIL)
   color       String?
   printName   String?
   imageUrl    String?

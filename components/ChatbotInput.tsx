@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { createMultiItemOrder, createProduct } from '@/app/actions';
+import { createMultiItemOrder, createProduct, updateProduct } from '@/app/actions';
 import { uploadProductImage } from '@/lib/supabase';
 
 export function ChatbotInput({ products, activeView, onViewChange, onClose, showToast }: { products: any[], activeView: string, onViewChange: (view: any) => void, onClose: () => void, showToast?: (msg: string, type: 'info'|'success'|'error') => void }) {
@@ -13,6 +13,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
   const [customerDetails, setCustomerDetails] = useState({ name: '', email: '', phone: '', address: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchCategory, setSearchCategory] = useState<'ALL' | 'ONLINE_RETAIL' | 'OFFLINE_RETAIL' | 'WHOLESALE'>('ALL');
   const [selectedSearchProduct, setSelectedSearchProduct] = useState<any>(null);
   
   // Inline Form State for selecting existing variants
@@ -72,16 +73,21 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
   };
 
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    let filtered = products;
+    if (searchCategory !== 'ALL') {
+      filtered = filtered.filter(p => p.salesCategory === searchCategory);
+    }
+    
+    if (!searchQuery.trim()) return filtered.slice(0, 5);
     const lower = searchQuery.toLowerCase();
     
-    return products.filter(p => 
+    return filtered.filter(p => 
       p.name.toLowerCase().includes(lower) || 
       p.printName?.toLowerCase().includes(lower) || 
       p.color?.toLowerCase().includes(lower) || 
       p.sku?.toLowerCase().includes(lower)
     ).slice(0, 10);
-  }, [searchQuery, products]);
+  }, [searchQuery, searchCategory, products]);
 
   const handleCreateOrder = async () => {
     setLoading(true);
@@ -441,13 +447,25 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                 
                 {!selectedSearchProduct ? (
                   <>
-                    <input 
-                      type="text" 
-                      placeholder="Search products (e.g. Wolf Graphic Tee)..." 
-                      className="w-full border border-slate-200 rounded-xl p-3 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 mb-4 bg-slate-50/50"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                    <div className="flex gap-2 mb-4">
+                      <select
+                        className="flex-1 border border-slate-200 rounded-xl p-3 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 bg-slate-50/50 text-sm"
+                        value={searchCategory}
+                        onChange={(e) => setSearchCategory(e.target.value as any)}
+                      >
+                        <option value="ALL">All Categories</option>
+                        <option value="ONLINE_RETAIL">Online Retail</option>
+                        <option value="OFFLINE_RETAIL">Offline Retail</option>
+                        <option value="WHOLESALE">Wholesale</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        placeholder="Search products..." 
+                        className="flex-[2] border border-slate-200 rounded-xl p-3 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 bg-slate-50/50"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
                     
                     {searchResults.length > 0 && (
                       <div className="border border-slate-100 shadow-sm rounded-xl max-h-64 overflow-y-auto mb-4 bg-white">
@@ -467,8 +485,32 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   <div className="mb-6">
                     <button onClick={() => setSelectedSearchProduct(null)} className="text-sm font-semibold text-slate-500 hover:text-slate-800 mb-4 flex items-center gap-1 transition-colors"><span>←</span> Back to Search</button>
                     <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-100 mb-5">
-                      <p className="font-bold text-slate-800 text-lg">{selectedSearchProduct.name}</p>
-                      <p className="text-sm text-slate-500 mt-1">{selectedSearchProduct.color} {selectedSearchProduct.printName ? `(${selectedSearchProduct.printName})` : ''}</p>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-slate-800 text-lg">{selectedSearchProduct.name}</p>
+                          <p className="text-sm text-slate-500 mt-1">{selectedSearchProduct.color} {selectedSearchProduct.printName ? `(${selectedSearchProduct.printName})` : ''}</p>
+                        </div>
+                        <div>
+                          <select
+                            className="border border-slate-200 rounded p-1.5 text-xs bg-white text-slate-600 outline-none font-medium"
+                            value={selectedSearchProduct.salesCategory || 'OFFLINE_RETAIL'}
+                            onChange={async (e) => {
+                              const newCat = e.target.value;
+                              setSelectedSearchProduct({...selectedSearchProduct, salesCategory: newCat});
+                              await updateProduct(selectedSearchProduct.id, {
+                                name: selectedSearchProduct.name,
+                                basePrice: selectedSearchProduct.basePrice,
+                                salesCategory: newCat as any
+                              });
+                              if (showToast) showToast('Category updated', 'success');
+                            }}
+                          >
+                            <option value="ONLINE_RETAIL">Online Retail</option>
+                            <option value="OFFLINE_RETAIL">Offline Retail</option>
+                            <option value="WHOLESALE">Wholesale</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                     <p className="text-sm font-bold text-slate-700 mb-3">Select Size Variant:</p>
                     <div className="space-y-3">

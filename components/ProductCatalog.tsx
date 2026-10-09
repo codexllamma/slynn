@@ -8,6 +8,7 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newStock, setNewStock] = useState<number>(0);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ONLINE_RETAIL' | 'OFFLINE_RETAIL' | 'WHOLESALE'>('ALL');
   
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editData, setEditData] = useState<any>({});
@@ -19,6 +20,7 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
       sku: product.sku || '',
       description: product.description || '',
       category: product.category || '',
+      salesCategory: product.salesCategory || 'OFFLINE_RETAIL',
       color: product.color || '',
       printName: product.printName || '',
       basePrice: product.basePrice || 0,
@@ -32,6 +34,7 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
         sku: editData.sku,
         description: editData.description,
         category: editData.category,
+        salesCategory: editData.salesCategory,
         color: editData.color,
         printName: editData.printName,
         basePrice: Number(editData.basePrice),
@@ -93,21 +96,30 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
   };
 
   const filteredProducts = useMemo(() => {
-    if (!search.trim()) return products;
-    const lowerSearch = search.toLowerCase();
-    return products.filter(p => 
-      (p.name?.toLowerCase().includes(lowerSearch)) ||
-      (p.description?.toLowerCase().includes(lowerSearch)) ||
-      (p.color?.toLowerCase().includes(lowerSearch)) ||
-      (p.printName?.toLowerCase().includes(lowerSearch)) ||
-      (p.category?.toLowerCase().includes(lowerSearch)) ||
-      (p.sku?.toLowerCase().includes(lowerSearch))
-    );
-  }, [products, search]);
+    let filtered = products;
+
+    if (activeTab !== 'ALL') {
+      filtered = filtered.filter(p => p.salesCategory === activeTab);
+    }
+
+    if (search.trim()) {
+      const lowerSearch = search.toLowerCase();
+      filtered = filtered.filter(p => 
+        (p.name?.toLowerCase().includes(lowerSearch)) ||
+        (p.description?.toLowerCase().includes(lowerSearch)) ||
+        (p.color?.toLowerCase().includes(lowerSearch)) ||
+        (p.printName?.toLowerCase().includes(lowerSearch)) ||
+        (p.category?.toLowerCase().includes(lowerSearch)) ||
+        (p.sku?.toLowerCase().includes(lowerSearch))
+      );
+    }
+    
+    return filtered;
+  }, [products, search, activeTab]);
 
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 border border-slate-100/60 font-sans">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-3xl font-light text-slate-800 tracking-tight">Product Catalog</h2>
         <div className="w-full md:w-1/2 flex gap-2 relative">
           <div className="relative flex-1">
@@ -129,6 +141,22 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
         </div>
       </div>
 
+      <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+        {['ALL', 'ONLINE_RETAIL', 'OFFLINE_RETAIL', 'WHOLESALE'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab as any)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+              activeTab === tab 
+                ? 'bg-sky-100 text-sky-800 border border-sky-200 shadow-sm' 
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {tab === 'ALL' ? 'All Products' : tab.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-4">
         {filteredProducts.map((product) => (
           <div key={product.id} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-100/50 hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-300">
@@ -139,7 +167,16 @@ export function ProductCatalog({ products, showToast }: { products: any[], showT
                   <input type="text" className="col-span-2 border rounded-lg p-2 text-sm" placeholder="Product Name" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
                   <input type="text" className="col-span-2 border rounded-lg p-2 text-sm" placeholder="Description" value={editData.description} onChange={e => setEditData({...editData, description: e.target.value})} />
                   <input type="text" className="border rounded-lg p-2 text-sm" placeholder="SKU" value={editData.sku} onChange={e => setEditData({...editData, sku: e.target.value})} />
-                  <input type="text" className="border rounded-lg p-2 text-sm" placeholder="Category" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})} />
+                  <input type="text" className="border rounded-lg p-2 text-sm" placeholder="Product Type (e.g. T-Shirt)" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})} />
+                  <select 
+                    className="border rounded-lg p-2 text-sm bg-white" 
+                    value={editData.salesCategory} 
+                    onChange={e => setEditData({...editData, salesCategory: e.target.value})}
+                  >
+                    <option value="ONLINE_RETAIL">Online Retail</option>
+                    <option value="OFFLINE_RETAIL">Offline Retail</option>
+                    <option value="WHOLESALE">Wholesale</option>
+                  </select>
                   <input type="text" className="border rounded-lg p-2 text-sm" placeholder="Color" value={editData.color} onChange={e => setEditData({...editData, color: e.target.value})} />
                   <input type="text" className="border rounded-lg p-2 text-sm" placeholder="Print Name" value={editData.printName} onChange={e => setEditData({...editData, printName: e.target.value})} />
                   <input type="number" className="border rounded-lg p-2 text-sm" placeholder="Base Price (₹)" value={editData.basePrice} onChange={e => setEditData({...editData, basePrice: e.target.value})} />

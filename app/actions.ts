@@ -158,6 +158,7 @@ export async function updateProduct(id: string, data: {
   sku?: string;
   description?: string;
   category?: string;
+  salesCategory?: Channel;
   color?: string;
   printName?: string;
   basePrice: number;
@@ -169,6 +170,7 @@ export async function updateProduct(id: string, data: {
       sku: data.sku || null,
       description: data.description,
       category: data.category,
+      salesCategory: data.salesCategory,
       color: data.color,
       printName: data.printName,
       basePrice: data.basePrice,
