@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { createMultiItemOrder, createProduct, updateProduct } from '@/app/actions';
+import { createMultiItemOrder, createProduct, updateProduct, type OrderItemInput } from '@/app/actions';
 import { uploadProductImage } from '@/lib/supabase';
+import { computeCartSubTotal, parseNumber } from '@/lib/orderMath';
 
 export function ChatbotInput({ products, activeView, onViewChange, onClose, showToast }: { products: any[], activeView: string, onViewChange: (view: any) => void, onClose: () => void, showToast?: (msg: string, type: 'info'|'success'|'error') => void }) {
   const [step, setStep] = useState(0);
@@ -92,11 +93,31 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
   const handleCreateOrder = async () => {
     setLoading(true);
     try {
-      const payloadItems = cartItems.map(item => {
+      const payloadItems: OrderItemInput[] = cartItems.map(item => {
+        if (item.isNew) {
+          const base = Math.max(0, parseNumber(item.basePrice, 0));
+          return {
+            isNew: true,
+            name: item.name,
+            description: item.description,
+            category: item.category,
+            color: item.color,
+            printName: item.printName,
+            imageUrls: item.imageUrls || [],
+            basePrice: base,
+            variants: (item.variants || []).map((v: any) => ({
+              size: v.size,
+              quantity: Math.max(0, Math.trunc(parseNumber(v.quantity, 0))),
+              price: Math.max(0, parseNumber(v.price, 0) || base),
+            })),
+          };
+        }
+
         return {
+          isNew: false,
           productId: item.productId,
-          quantity: Number(item.quantity),
-          pricePerUnit: Number(item.price)
+          quantity: Math.max(0, Math.trunc(parseNumber(item.quantity, 0))),
+          pricePerUnit: Math.max(0, parseNumber(item.price, 0)),
         };
       });
 
@@ -266,10 +287,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                         </div>
                         <div className="text-right">
                           <p className="text-xs font-bold text-slate-700">
-                            ₹{item.isNew 
-                              ? item.variants.reduce((sum:any, v:any)=>sum + (Number(v.quantity)*Number(v.price || item.basePrice)), 0).toLocaleString('en-IN')
-                              : (Number(item.quantity) * Number(item.price)).toLocaleString('en-IN')
-                            }
+                            ₹{computeCartSubTotal([item]).toLocaleString('en-IN')}
                           </p>
                         </div>
                       </div>
@@ -320,13 +338,8 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                   <span className="text-sm font-bold text-slate-800">{cartItems.length}</span>
                 </div>
                 {(() => {
-                  const subTotal = cartItems.reduce((acc, item) => {
-                    if (item.isNew) {
-                      return acc + item.variants.reduce((sum: any, v: any) => sum + (Number(v.quantity) * Number(v.price || item.basePrice || 0)), 0);
-                    }
-                    return acc + (Number(item.quantity) * Number(item.price));
-                  }, 0);
-                  const gst = subTotal * 0.05;
+                  const subTotal = computeCartSubTotal(cartItems);
+                  const gst = Number((subTotal * 0.05).toFixed(2));
                   const finalTotal = Math.round(subTotal + gst);
                   return (
                     <>
@@ -521,7 +534,7 @@ export function ChatbotInput({ products, activeView, onViewChange, onClose, show
                             <div className="flex justify-between items-center cursor-pointer" onClick={() => {
                               setAddingVariantId(v.id);
                               setVariantAddQty(1);
-                              setVariantAddPrice(v.price || selectedSearchProduct.basePrice);
+                              setVariantAddPrice(parseNumber(v.price || selectedSearchProduct.basePrice, 0));
                             }}>
                               <div>
                                 <p className="font-bold text-slate-800 text-lg">Size {v.size}</p>
